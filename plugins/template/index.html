@@ -1,0 +1,29 @@
+<div>
+
+    <!-- Here you can add your component UI -->
+
+    <button .example></button>
+
+    <!-- Here we initialize our component -->
+
+    <script>
+        (component => {
+
+            component.element // The root element used for instances
+
+            component.onInstance = instance => {
+
+                // Initialize your component instance
+
+                instance.element.get(".example").on("click", () => {
+                    // ...
+                })
+            }
+
+        })
+        
+        (new Sound.Component("template", document.currentScript.parentElement, {
+            title: "Template"
+        }))
+    </script>
+</div>

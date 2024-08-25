@@ -1,0 +1,100 @@
+.window-handle {
+    background: linear-gradient(var(--bg-7), var(--bg-5));
+    filter: brightness(.6);
+    display: flex;
+    justify-content: space-between;
+    padding: 5px;
+    padding-left: 15px;
+    align-items: center
+}
+
+.focused .window-handle {
+    filter: unset
+}
+
+.window-handle button {
+    font-size: .6em;
+    margin: 0;
+    -webkit-text-stroke-width: 1px
+}
+
+.window-container {
+    position: absolute;
+    overflow: visible
+}
+
+.window {
+    border-radius: var(--br-tiny);
+    overflow: hidden;
+    outline: 1px solid var(--elevate-1);
+    box-shadow: 0 10px 20px 0 rgba(0, 0, 0, .13);
+    background: var(--ui-bg-1);
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+}
+
+.focused .window {
+    box-shadow: 0 10px 35px 4px rgb(0 0 0 / 30%)
+}
+
+.maximized .window {
+    border-radius: 0
+}
+
+.maximized .window-buttons .bi-square::before {
+    content: "\F149"!important
+}
+
+.window.acrylic {
+    background: var(--background-tr);
+    backdrop-filter: blur(40px)
+}
+
+iframe {
+    border: none
+}
+
+.window-buttons {
+    display: flex;
+    gap: 6px;
+    margin-right: 4px;
+}
+
+.window-buttons.window-buttons button {
+    margin: 0;
+}
+
+.window-content {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    flex: 1;
+    overflow: hidden
+}
+
+.window-content iframe {
+    width: 100%;
+    height: 100%
+}
+
+.window-container .ls-resize-bar {
+    opacity: 0
+}
+
+.window-container .ls-resize-bar-top {
+    transform: translateY(-50%)
+}
+
+.window-container .ls-resize-bar-bottom {
+    transform: translateY(50%)
+}
+
+.window-container .ls-resize-bar-left {
+    transform: translateX(-50%)
+}
+
+.window-container .ls-resize-bar-right {
+    transform: translateX(50%)
+}

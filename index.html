@@ -1,0 +1,117 @@
+<head>
+
+    @resources {
+        ls-js: tiny, knob, color, tooltips, tabs, resize, toast, AutomationGraphEditor, select;
+        ls-css: knob, tooltips, base, ls-flat, ls-elevated, tabs, resize, AutomationGraphEditor, select;
+
+        js: app.js, core/window_manager.js;
+        css: core/css/window.css;
+
+        fonts: "Exo 2";
+
+        bootstrap-icons;
+    }
+
+    @manifest {
+        accent: "auto";
+        theme: "dark";
+        style: "elevated";
+    }
+
+    <script>
+        var head = document.getElementsByTagName("head")[0];
+
+        for (const weight of ["regular", "thin", "light", "bold", "fill", "duotone"]) {
+            var link = document.createElement("link");
+            link.rel = "stylesheet";
+            link.type = "text/css";
+            link.href =
+                "https://unpkg.com/@phosphor-icons/web@2.1.1/src/" + weight + "/style.css";
+            head.appendChild(link);
+        }
+    </script>
+
+</head>
+
+<body ls-accent="auto">
+
+    @import ("/plugins/synthetizer/index.html");
+
+    <!-- <div %composerContainer>
+        <canvas %composerRenderer width="5760" height="240"></canvas>
+    </div> -->
+
+
+    <div %windowContainer></div>
+
+
+    <style>
+        :root {
+            --background-active: var(--bg-6);
+            
+            --foreground: var(--color);
+            
+            font-family: monospace;
+            user-select: none;
+
+            color: var(--foreground);
+        }
+
+        body {
+            background-color: var(--background);
+            position: fixed;
+            user-select: none;
+            inset: 0;
+            margin: 0;
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            -webkit-user-select: none;
+            overflow: hidden;
+        }
+
+        .sound-component {
+            display: flex;
+            border: 1px solid var(--foreground);
+            flex-direction: column;
+            overflow: hidden;
+            background-color: var(--background);
+        }
+        
+        .sound-component .window-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .sound-component .window-handle ls-knob {
+            --knob-size: 16px;
+        }
+
+        .sound-component-content {
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            padding: 10px;
+        }
+
+        ls-knob {
+            box-shadow: inset 0 0 0 var(--knob-stroke-width) #0002;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        canvas {
+            image-rendering: pixelated;
+        }
+
+        #windowContainer {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+
+</body>

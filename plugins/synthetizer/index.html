@@ -1,0 +1,606 @@
+<style>
+    .synthetizer-window {
+        font-family: 'Exo 2', monospace;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .oscillator-frequency {
+        --knob-size: 16px;
+        display: flex;
+        align-items: center;
+        padding: 5px 10px;
+        gap: 10px;
+        background: linear-gradient(var(--bg-4), var(--bg-3));
+        border-bottom: 4px solid var(--border-color);
+        justify-content: space-between;
+        cursor: pointer;
+    }
+
+    .oscillator-frequency.selected {
+        background: linear-gradient(var(--bg-8), var(--bg-4));
+        cursor: initial;
+    }
+
+    .oscillator-frequency:hover {
+        background-color: var(--bg-2);
+    }
+
+    .automation-editor, .oscillators-container {
+        border: 1px solid var(--elevate-0);
+        /* display: block; */
+        margin-bottom: 8px;
+        border-radius: var(--br-small);
+        box-shadow: 0px 2px 0 0 #0002;
+    }
+
+    .automation-editor {
+        background: var(--bg-1);
+        overflow: hidden;
+    }
+
+    .automation-editor .ls-automationgraph {
+        border-top: 1px solid var(--bg-8);
+    }
+
+    .automation-editor ls-group {
+        justify-content: center;
+        margin: 10px 0;
+        margin-top: 6px;
+    }
+
+    .oscillators-container {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: auto;
+        padding: 10px;
+        padding-top: 5px;
+        background: var(--ui-bg-0);
+    }
+
+    .oscillators {
+        overflow: auto;
+        flex: 1;
+        background: var(--bg-3);
+        border-radius: var(--br-small-inside);
+        margin-top: 5px;
+    }
+</style>
+
+<div .synthetizer-window>
+    <div .automation-editor>
+        <ls-tabs>
+            <ls-tab tab-title="Gain">
+                <div .automation-gain ls-accent="blue"></div>
+                <ls-group join .automation-offset-input>
+                    <label class="ls-radio-button">
+                        <input type="radio" checked value="start">
+                        <span class="ls-button">Start</span>
+                    </label>
+                    <label class="ls-radio-button">
+                        <input type="radio" value="loop">
+                        <span class="ls-button">Loop</span>
+                    </label>
+                    <label class="ls-radio-button">
+                        <input type="radio" value="end">
+                        <span class="ls-button">End</span>
+                    </label>
+                </ls-group>
+            </ls-tab>
+            <ls-tab tab-title="Frequency">
+                <div .automation-frequency ls-accent="red"></div>
+            </ls-tab>
+            <ls-tab tab-title="Pan">
+                <div .automation-pan ls-accent="green"></div>
+            </ls-tab>
+        </ls-tabs>
+    </div>
+
+    <button .add style="width: 100%; margin: 0; margin-bottom: 8px">Add oscillator</button>
+
+    <br>
+
+    
+    <div .oscillators-container>
+        Oscillators
+        <div .oscillators></div>
+    </div>
+
+    <script>
+        (component => {
+            component.onInstance = instance => {
+                instance.data.frequencies = {}
+
+                let automationTimingRadioButtons = instance.element.get(".automation-offset-input"), automationTimingCurrentTab = "start";
+
+                automationTimingRadioButtons.getAll("input").all().attrAssign({
+                    name: instance.uniqueID
+                })
+
+                automationTimingRadioButtons.getAll("input").all().on("change", (event) => {
+                    automationTimingCurrentTab = event.target.value;
+                    console.log(automationTimingCurrentTab);
+                    updateTimingTab()
+                })
+
+                let automationTabs = LS.Tabs(instance.element.get(".automation-editor ls-tabs"), {
+                    list: true
+                })
+
+                automationTabs.on("tab_changed", (index, id) => {
+                    automationTabs.tabs[id].add(automationTimingRadioButtons)
+                })
+
+                let events = LS.EventHandler(instance);
+
+                instance.onResize = function (a, b){
+                    instance.invoke("resize")
+                }
+
+                function createAutomationEditor(element, options, key){
+                    let automationEditor = LS.AutomationGraphEditor(element, options)
+
+                    instance.on("resize", resizeEditor)
+
+                    resizeEditor()
+
+                    function resizeEditor(){
+                        let box = instance.element.get(".ls-tabs-wrapper").getBoundingClientRect();
+
+                        automationEditor.currentView.updateScale(box.width / automationEditor.options.width)
+                    }
+
+                    function editorTooltip(index, offset, value){
+                        let box = element.getBoundingClientRect();
+
+                        LS._topLayer.class("transparentTooltips")
+        
+                        LS.Tooltips.position(box.x, box.y)
+                        LS.Tooltips.set(`Offset: ${Math.round(offset)}ms, Value: ${Math.round(value)}`)
+                        LS.Tooltips.show()
+                    }
+
+                    automationEditor.on("handle.grab", editorTooltip)
+                
+                    automationEditor.on("handle.change", (...data) => {
+                        editorTooltip(...data)
+
+                        if(instance.data.frequencies[currentLayer]){
+                            instance.data.frequencies[currentLayer].automation[key][automationTimingCurrentTab] = automationEditor.values.points
+                        }
+                    })
+
+                    automationEditor.on("handle.release", (index, offset, value) => {
+                        LS._topLayer.class("transparentTooltips", false)
+
+                        LS.Tooltips.hide()
+                    })
+
+                    resizeEditor()
+                    
+                    return automationEditor
+                }
+
+                let automationTime = 2000, automationEditorHeight = 160, last;
+
+                let frequencyEditors = [
+                    createAutomationEditor(instance.element.get(".automation-frequency"), {
+                        width: automationTime,
+                        height: 500,
+                        scaleY: automationEditorHeight / 500,
+                        valueOffset: 400
+                    }, "frequency"),
+
+                    createAutomationEditor(instance.element.get(".automation-gain"), {
+                        width: automationTime,
+                        height: 100,
+                        scaleY: automationEditorHeight / 100
+                    }, "gain"),
+
+                    createAutomationEditor(instance.element.get(".automation-pan"), {
+                        width: automationTime,
+                        height: 200,
+                        scaleY: automationEditorHeight / 200
+                    }, "pan")
+                ]
+
+                let [frequencyEditor, gainEditor, panEditor] = frequencyEditors;
+                
+                function getLast(){
+                    return last = Object.keys(instance.data.frequencies).map(key => +key || 0).sort().at(-1) || 0;
+                }
+                
+                instance.loadPreset = function (data){
+                    getLast();
+
+                    if(!data) data = {frequencies: {}};
+
+                    instance.data = {frequencies: {}};
+
+                    for(let editor of frequencyEditors) editor.restartRenderer()
+
+                    instance.element.get(".oscillators").clear()
+
+                    let first;
+
+                    for(let frequency in data.frequencies){
+                        // Defaults
+                        data.frequencies[frequency] = {
+                            value: 500,
+                            gain: 100,
+                            decay: 0,
+                            attack: 0,
+
+                            ...data.frequencies[frequency]
+                        }
+
+                        let id = addOscillator(data.frequencies[frequency])
+                        console.log(id);
+                        if(typeof first === "undefined") first = id;
+
+                        // instance.data.frequencies[id] = data.frequencies[id]
+                    }
+
+                    if(data.frequencies.hasOwnProperty(first)) selectLayer(first)
+                }
+
+                let currentLayer = null;
+
+                function selectLayer(id){
+                    currentLayer = id;
+
+                    let data = instance.data.frequencies[id];
+
+                    if(!data) return null;
+
+                    updateTimingTab()
+
+                    instance.element.getAll(".oscillator-frequency").all().class("selected", false)
+                    instance.element.get(".oscillator-frequency-" + id).class("selected")
+
+                    return true
+                }
+
+                function updateTimingTab(){
+                    let data = instance.data.frequencies[currentLayer];
+
+                    if(!data) return null;
+
+                    function getPreviousValue(target, depth){
+                        let previousPoint;
+
+                        switch(depth || automationTimingCurrentTab){
+                            case "start":
+                                return 0
+                                break;
+
+                            case "loop":
+                                previousPoint = target.start.at(-1)
+
+                                if(previousPoint) return previousPoint.value; else return 0
+                                break;
+
+                            case "end":
+                                previousPoint = target.loop.at(-1)
+
+                                if(previousPoint) return previousPoint.value; else return getPreviousValue(target, "loop")
+                                break;
+
+                            default: return 0
+                        }
+                    }
+
+                    frequencyEditor.values = {
+                        start: getPreviousValue(data.automation.frequency),
+                        points: data.automation.frequency[automationTimingCurrentTab]
+                    }
+
+                    gainEditor.values = {
+                        start: getPreviousValue(data.automation.gain),
+                        points: data.automation.gain[automationTimingCurrentTab]
+                    }
+
+                    console.log(getPreviousValue(data.automation.gain));
+
+                    panEditor.values = {
+                        start: getPreviousValue(data.automation.pan),
+                        points: data.automation.pan[automationTimingCurrentTab]
+                    }
+                }
+
+                function addOscillator(data){
+                    let id = last++;
+
+                    data = LS.Util.defaults({
+                        // value: 0,
+                        // gain: 100,
+
+                        decay: 0,
+
+                        automation: {
+                            frequency: {
+                                start: [{ offset: 0, value: 0 }],
+                                loop: [],
+                                end: [],
+                            },
+
+                            gain: {
+                                start: [{ offset: 0, value: 100 }],
+                                loop: [],
+                                end: [],
+                            },
+
+                            pan: {
+                                start: [{ offset: 0, value: 0 }],
+                                loop: [],
+                                end: [],
+                            }
+                        }
+                    }, data)
+
+                    let item = N({
+                        class: "oscillator-frequency oscillator-frequency-" + id,
+
+                        onclick(){
+                            selectLayer(id)
+                        },
+
+                        inner: [
+                            // gainKnob.element,
+                            // offsetKnob.element,
+
+                            // TODO: in the future, use LS's radio buttons when they get stable.
+                            N("ls-group", {
+                                attr: "join",
+
+                                inner: [
+                                    N("button", {
+                                        inner: '<i class="ph-duotone ph-wave-sine"></i>',
+                                        tooltip: "Sine",
+                                        class: "wave-type-sine",
+                                        onclick(){
+                                            changeWaveType("sine")
+                                        }
+                                    }),
+
+                                    N("button", {
+                                        inner: '<i class="ph-duotone ph-wave-square"></i>',
+                                        tooltip: "Square",
+                                        class: "wave-type-square",
+                                        onclick(){
+                                            changeWaveType("square")
+                                        }
+                                    }),
+    
+                                    N("button", {
+                                        inner: '<i class="ph-duotone ph-wave-sawtooth"></i>',
+                                        tooltip: "Sawtooth",
+                                        class: "wave-type-sawtooth",
+                                        onclick(){
+                                            changeWaveType("sawtooth")
+                                        }
+                                    }),
+    
+                                    N("button", {
+                                        inner: '<i class="ph-duotone ph-wave-triangle"></i>',
+                                        tooltip: "Triangle",
+                                        class: "wave-type-triangle",
+                                        onclick(){
+                                            changeWaveType("triangle")
+                                        }
+                                    }),
+    
+                                    N("button", {
+                                        inner: '<i class="ph ph-waveform"></i>',
+                                        tooltip: "Noise",
+                                        class: "wave-type-noise",
+                                        onclick(){
+                                            changeWaveType("noise")
+                                        }
+                                    }),
+                                ]
+                            }),
+
+                            N("button", {
+                                inner: '<i class="ph-fill ph-trash"></i>',
+
+                                style: {
+                                    color: "#f11"
+                                },
+
+                                tooltip: "Remove",
+
+                                onclick(){
+                                    item.remove()
+                                    delete instance.data.frequencies[id]
+                                }
+                            }),
+                        ]
+                    })
+
+                    function changeWaveType(value){
+                        instance.data.frequencies[id].type = value
+
+                        item.getAll(".active").all().class("active", false)
+
+                        item.get(`.wave-type-${value}`).class("active")
+                    }
+
+                    instance.data.frequencies[id] = data
+
+                    changeWaveType(data.type || "sine")
+
+                    instance.element.get(".oscillators").add(item)
+
+                    return id
+                }
+
+                instance.element.get(".add").on("click", () => {
+                    selectLayer(addOscillator())
+                })
+
+                instance._continuousGenerator = (options = {}, onStop) => {
+                    for(let frequency of Object.values(instance.data.frequencies)){
+                        const gain = audioContext.createGain();
+                        const compressor = audioContext.createDynamicsCompressor();
+
+                        let source;
+
+                        // Construct the source:
+
+                        if(frequency.type !== "noise") {
+
+                            const oscillator = audioContext.createOscillator();
+                            oscillator.type = frequency.type || 'sine';
+
+                            // oscillator.frequency.setValueAtTime(+ frequency.value + options.baseFrequency, audioContext.currentTime);
+
+                            source = oscillator;
+
+                        } else {
+
+                            const bufferSize = 4096 * 16;
+                            const noiseBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+                            const output = noiseBuffer.getChannelData(0);
+
+                            Sound.noiseGenerator.brownNoise(bufferSize, output)
+                            // Sound.noiseGenerator.lead(bufferSize, options.baseFrequency, audioContext.sampleRate, output)
+
+                            const noiseSource = audioContext.createBufferSource();
+
+                            noiseSource.buffer = noiseBuffer;
+                            noiseSource.loop = true;
+                            
+                            source = noiseSource;
+                        }
+
+                        gain.gain.value = .0001;
+
+                        let lastEndOffset = 0, endAutomations = [], loopTimeouts = [], stopped = false;
+
+                        onStop(() => {
+                            stopped = true;
+
+                            for(let automation of endAutomations) automation();
+                            for(let timeout of loopTimeouts) clearTimeout(timeout);
+
+                            source.stop(audioContext.currentTime + lastEndOffset)
+                        })
+
+                        if(frequency.automation){
+                            for(let key in frequency.automation){
+                                let automationTarget = {
+                                    gain: gain.gain,
+                                    frequency: source.frequency
+                                }[key]
+                                
+                                if(!automationTarget) continue;
+
+                                let lastPointOffset = frequency.automation[key].start.length > 0? frequency.automation[key].start.at(-1).offset / 1000: 0
+                                let lastLoopOffset = frequency.automation[key].loop.length > 0? frequency.automation[key].loop.at(-1).offset / 1000: 0
+                                let _lastEndOffset = frequency.automation[key].end.length > 0? frequency.automation[key].end.at(-1).offset / 1000: 0
+
+                                if(_lastEndOffset > lastEndOffset) lastEndOffset = _lastEndOffset;
+                                
+                                for(let type in frequency.automation[key]){
+
+                                    if(!frequency.automation[key][type] || frequency.automation[key][type].length < 1) continue;
+
+                                    if(type == "end"){
+                                        endAutomations.push(startAutomation)
+                                    } else startAutomation()
+
+                                    function startAutomation(){
+                                        if(type == "loop"){
+                                            let interval = setTimeout(() => {
+                                                if(stopped) {
+                                                    clearInterval(interval)
+                                                    return
+                                                }
+
+                                                startAutomation()
+                                                console.log("loop");
+                                            }, lastLoopOffset * 1000)
+
+                                            loopTimeouts.push(interval)
+                                        }
+
+                                        for(let point of frequency.automation[key][type]) {
+                                            let value = point.value, offset = 0;
+        
+                                            if(key == "frequency") {
+                                                value += options.baseFrequency
+                                                if(value < 0) value = 0;
+                                            }
+        
+                                            if(key == "gain") {
+                                                value = value / 100;
+                                            }
+
+                                            if(type == "loop"){
+                                                offset += lastPointOffset
+                                            }
+        
+                                            switch(point.type){
+                                                case "curve":
+                                                    automationTarget.exponentialRampToValueAtTime(value + .0001, offset + audioContext.currentTime + (point.offset / 1000))
+                                                    break;
+        
+                                                case "linear":
+                                                    automationTarget.linearRampToValueAtTime(value, offset + audioContext.currentTime + (point.offset / 1000))
+                                                    break;
+        
+                                                default:
+                                                    automationTarget.setValueAtTime(value, offset + audioContext.currentTime + (point.offset / 1000))
+                                            }
+                                        }
+                                    }
+
+                                }
+                            }
+                        } else return;
+                        
+                        // const noiseFilter = audioContext.createBiquadFilter();
+                        // noiseFilter.type = 'lowpass';
+                        // noiseFilter.frequency.linearRampToValueAtTime(options.baseFrequency + 2000, audioContext.currentTime +2);
+
+                        source.connect(gain)
+                        gain.connect(compressor)
+                        // noiseFilter.connect(compressor)
+                        compressor.connect(instance.destination)
+
+                        source.start(audioContext.currentTime);
+                    }
+                }
+            }
+        })
+
+        (new Sound.Component("synthetizer", document.currentScript.parentElement, {
+            title: "Synthetizer",
+
+            name: "AMS (Advanced Manual Synthetizer)",
+
+            description: `AMS is a fully featured synth plugin with a wide variety of options. It is an interface that allows you to fine-tune almost any sound you need.`,
+
+            window: {
+                width: 375,
+                minWidth: 375,
+                maxWidth: 375 * 3,
+                minHeight: 230
+            },
+
+            presets: {
+                // Legacy presets
+                // "Death ray": {"frequencies":{"0":{"value":"880","type":"sine"},"1":{"value":"932.33","type":"sine"},"2":{"value":"987.77","type":"sawtooth"}}},
+                // "Lone star": {"frequencies":{"0":{"value":"0","type":"sine"},"1":{"value":"20","type":"triangle"}}},
+                // "Oscilating": {"frequencies":{"0":{"value":52,"type":"square"},"1":{"value":51.37,"type":"square"},"2":{"value":31,"type":"sawtooth"}}},
+                // "Flashback": {"frequencies":{"0":{"value":-261.63,"gain":1,"decay":2,"attack":0,"type":"sine"},"1":{"value":2400,"gain":0.44,"decay":0,"attack":2,"type":"sawtooth"},"2":{"value":453,"gain":0.03,"decay":0,"attack":0,"type":"noise"}}},
+                Boink: {"frequencies":{"0":{"value":500,"gain":100,"decay":0.085,"attack":0,"automation":{"frequency":{"start":[{"offset":73.73271889400922,"value":244.3359375,"id":"m07zwxbr-1r-hc5p-eeg1x5","curvature":0,"type":"curve"}],"loop":[],"end":[]},"gain":{"start":[{"offset":0,"value":70.1171875,"id":"m07zwxbs-1w-hc5p-1ubjdq6","curvature":0},{"type":"linear","offset":169.97167138810198,"value":0,"id":"m080nkp5-2i-hc5p-3ufgj","curvature":0}],"loop":[],"end":[]},"pan":{"start":[{"offset":0,"value":0,"id":"m07zwxbs-21-hc5p-uj3ytl","curvature":0}],"loop":[],"end":[]}},"type":"triangle"},"1":{"value":500,"gain":100,"decay":0.085,"attack":0,"automation":{"frequency":{"start":[{"offset":73.73271889400922,"value":244.3359375,"id":"m07zwxbr-1r-hc5p-eeg1x5","curvature":0,"type":"curve"}],"loop":[],"end":[]},"gain":{"start":[{"offset":0,"value":70.1171875,"id":"m07zwxbs-1w-hc5p-1ubjdq6","curvature":0},{"type":"linear","offset":169.97167138810198,"value":0,"id":"m080nkp5-2i-hc5p-3ufgj","curvature":0}],"loop":[],"end":[]},"pan":{"start":[{"offset":0,"value":0,"id":"m07zwxbs-21-hc5p-uj3ytl","curvature":0}],"loop":[],"end":[]}},"type":"triangle"}}},
+                "Bad signal": {"frequencies":{"0":{"decay":0,"automation":{"frequency":{"start":[{"offset":0,"value":484.9609375,"id":"m088egrr-1o-4u5p-fluhv5","curvature":0},{"type":"curve","offset":594.900849858357,"value":38.0859375,"id":"m088g2wc-69-4u5p-1lg5csl","curvature":0}],"loop":[],"end":[]},"gain":{"start":[{"offset":470.25495750708217,"value":36.9921875,"id":"m088egrs-1t-4u5p-1omktsq","curvature":0,"type":"curve"}],"loop":[{"type":"square","offset":175.6373937677054,"value":86.9921875,"id":"m088fe80-3b-4u5p-13yhg1d","curvature":0},{"type":"square","offset":322.94617563739376,"value":34.4921875,"id":"m088fepz-3g-4u5p-qhpxyf","curvature":0},{"type":"square","offset":390.93484419263456,"value":80.7421875,"id":"m088fdy1-36-4u5p-1rx8cub","curvature":0},{"type":"square","offset":464.5892351274788,"value":27.6171875,"id":"m088ff21-3l-4u5p-r1jhyp","curvature":0},{"type":"square","offset":623.229461756374,"value":75.7421875,"id":"m088fdpw-31-4u5p-qnr1lt","curvature":0},{"type":"square","offset":742.2096317280453,"value":11.9921875,"id":"m088ffqf-3q-4u5p-nc6rey","curvature":0},{"type":"square","offset":827.1954674220964,"value":100,"id":"m088f4zz-2c-4u5p-y1x4z5","curvature":0},{"type":"square","offset":946.1756373937677,"value":50.1171875,"id":"m088fgys-40-4u5p-d9au6h","curvature":0},{"type":"square","offset":1025.4957507082154,"value":58.8671875,"id":"m088fgky-3v-4u5p-xa79jk","curvature":0},{"type":"square","offset":1201.1331444759207,"value":29.4921875,"id":"m088falt-2h-4u5p-19wo327","curvature":0},{"type":"square","offset":1467.4220963172806,"value":61.9921875,"id":"m088fccj-2r-4u5p-e9oovt","curvature":0},{"type":"square","offset":1728.0453257790368,"value":8.8671875,"id":"m088fbmn-2m-4u5p-392g3x","curvature":0},{"type":"square","offset":1841.359773371105,"value":88.8671875,"id":"m088fd2h-2w-4u5p-1byarqf","curvature":0}],"end":[{"type":"linear","offset":866.8555240793202,"value":0,"id":"m088evvb-23-4u5p-14c4hmd","curvature":0}]},"pan":{"start":[{"offset":0,"value":0,"id":"m088egrs-1y-4u5p-s1sqab","curvature":0}],"loop":[],"end":[]}},"type":"noise"}}},
+                "Lost coin": {"frequencies":{"NaN":{"decay":0,"automation":{"frequency":{"start":[{"offset":0,"value":0,"id":"m0892xpa-1o-i78s-35854n","curvature":0},{"type":"linear","offset":11.3314447592068,"value":500,"id":"m0893cxr-2i-i78s-yxh0q","curvature":0},{"type":"linear","offset":62.3229461756374,"value":0,"id":"m0893j3t-2n-i78s-1xgqn4x","curvature":0}],"loop":[{"type":"square","offset":0,"value":500,"id":"m0893w7t-2s-i78s-dlpq9j","curvature":0},{"type":"square","offset":39.6600566572238,"value":0,"id":"m0893xh3-2x-i78s-pxwcne","curvature":0},{"type":"square","offset":84.98583569405099,"value":219.3359375,"id":"m08945fw-32-i78s-6sz9qq","curvature":0},{"type":"square","offset":124.6458923512748,"value":0,"id":"m0894b59-37-i78s-9d02p7","curvature":0}],"end":[]},"gain":{"start":[{"offset":0,"value":100,"id":"m0892xpb-1t-i78s-pvd3cx","curvature":0}],"loop":[{"type":"linear","offset":555.2407932011332,"value":0,"id":"m0894dxk-3c-i78s-otjagn","curvature":0}],"end":[{"type":"square","offset":0,"value":0,"id":"m0896lgv-5p-i78s-wmrl45","curvature":0},{"type":"square","offset":0,"value":0,"id":"m0896opm-5u-i78s-j1ktxy","curvature":0}]},"pan":{"start":[{"offset":0,"value":0,"id":"m0892xpb-1y-i78s-59t8t1","curvature":0}],"loop":[],"end":[]}},"type":"square"}}}
+            }
+        }))
+    </script>
+</div>
