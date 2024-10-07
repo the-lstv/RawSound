@@ -1,0 +1,239 @@
+<style>
+    .constructor-window textarea {
+        margin: 0 !important;
+        width: 100%;
+    }
+
+    .constructor-view {
+        display: flex;
+        height: 350px;
+        gap: 4px;
+    }
+
+    .constructor-view > div {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        gap: 8px;
+    }
+
+    .constructor-editor {
+        height: 100%;
+        width: 99%;
+    }
+</style>
+
+<div .constructor-window>
+
+    <div .constructor-view>
+
+        <div>
+            Constructor<br>
+            <div .constructor-script .constructor-editor></div>
+            <button .constructor-compile-button>Compile</button>
+        </div>
+    
+        <br>
+    
+        <div>
+            Modulator<br>
+            <div .constructor-modulator-script .constructor-editor></div>
+        </div>
+
+    </div>
+
+    <div hidden>
+        Constructor is the simplest yet most powerful generator/modulation plugin of them all.<br>
+
+        It is a "do it yourself" plugin - you can create any sound with it using a script, that then gets compiled into a sample that is then played and can be modulated in real time using another script.<br>
+
+        It effectively allows you to code your own sound, instruments, filters, etc.<br>
+    </div>
+
+    <script>
+        (component => {
+            component.onInstance = instance => {
+
+                let clip, data = {
+                    define: "",
+                    construct: "",
+                    modulation: "",
+                };
+
+                instance._continuousGenerator = (options = {}, onStop) => {
+
+                    if(!clip) return;
+
+                    // Need to compile every time
+                    let source = clip.createSource()
+
+                    source.connect(instance.destination)
+
+                    source.start()
+
+                    onStop(() => source.stop())
+
+                }
+
+                let creationScript, modulatorScript;
+
+                let scriptHelpers = {
+                    noise(){
+                        return Math.random() * 2 - 1
+                    },
+
+                    bpm(bpm){
+                        return audioContext.sampleRate * (60 / bpm)
+                    },
+
+                    frequency(frequency){
+                        return audioContext.sampleRate / frequency
+                    },
+
+                    sine(i, length){
+                        return Math.sin(2 * Math.PI * (i / length));
+                    },
+
+                    triangle(i, length){
+                        let phase = (i % length) / length;
+                        return 2 * Math.abs(2 * phase - 1) - 1;
+                    },
+
+                    square(i, length){
+                        return (i % length < length / 2) ? 1: -1
+                    },
+
+                    saw(i, length){
+                        return 2 * (i % length) / length - 1;
+                    },
+
+                    cubic(i, length){
+                        const phase = (i % length) / length;
+                        return 4 * Math.pow(phase - 0.5, 3); // Simple cubic equation
+                    },
+
+                    parabolic(i, length){
+                        const phase = (i % length) / length;
+                        return 1 - 4 * Math.pow(phase - 0.5, 2);
+                    },
+
+                    exponential(i, length){
+                        const phase = (i % length) / length;
+                        return Math.exp(2 * (phase - 0.5)) - 1;
+                    },
+
+                    harmonic(i, length){
+                        const phase = (i % length) / length;
+                        return (
+                            Math.sin(2 * Math.PI * phase) + // Fundamental frequency
+                            0.5 * Math.sin(4 * Math.PI * phase) + // Second harmonic
+                            0.25 * Math.sin(6 * Math.PI * phase) // Third harmonic
+                        ) / 1.75;
+                    },
+
+                    sqrt(i, length){
+                        const phase = (i % length) / length;
+                        return Math.sqrt(phase) * 2 - 1;
+                    }
+                }
+
+                function compile(){
+                    let constructor;
+
+                    try {
+                        constructor = (new Function("helpers", `const {${Object.keys(scriptHelpers).join(",")}} = helpers;let length = audioContext.sampleRate;${creationScript.getValue()};return {length, generator}`))(scriptHelpers)
+                    } catch (error) {
+                        console.error(error);
+                        return
+                    }
+                    
+
+                    if(typeof constructor.generator !== "function") return;                        
+
+                    clip = Sound.generator.compile(constructor.length, constructor.generator)
+                }
+
+                instance.loadPreset = function (data){
+                    creationScript.setValue(data.construct)
+                    modulatorScript.setValue(data.modulation)
+                    compile()
+                }
+
+                LS.once("monaco-ready", () => {
+                    creationScript = monaco.editor.create(instance.element.get(".constructor-script"), {
+                        value: '',
+                        language: "javascript",
+                        automaticLayout: true,
+                        fontFamily: "JetBrains Mono",
+                        minimap: { enabled: false },
+                        lineNumbers: "off",
+                    });
+
+                    modulatorScript = monaco.editor.create(instance.element.get(".constructor-modulator-script"), {
+                        value: '',
+                        language: "javascript",
+                        automaticLayout: true,
+                        fontFamily: "JetBrains Mono",
+                        minimap: { enabled: false },
+                        lineNumbers: "off",
+                    });
+
+                    instance.element.get(".constructor-compile-button").on("click", compile)
+                })
+            }
+        })
+
+        (new Sound.Component("constructor", document.currentScript.parentElement, {
+            title: "Constructor",
+
+            name: "Wave Constructor",
+
+            presets: {
+                "White noise": {
+                    construct: "// Math.random() * 2 - 1\nconst generator = noise",
+                    modulation: ""
+                },
+                "Tutorial": {
+                    construct: "// This plugin allows you to construct raw sound from soundwaves using code.\n\n//Here are some builtin helpers:\nnoise() // Returns a number -1 to 1 (white noise)\nbpm(180) // Converts bpm to samples\n\nlength // The sample length\n\n// Define a function called generator which will output the wave value.\nfunction generator(index){\n\treturn 0\n}",
+                    modulation: ""
+                },
+                "Brown noise": {
+                    construct: `let lastOut = 0;
+
+function generator () {
+    return (lastOut = (lastOut + (0.02 * noise())) / 1.02) * 3.5;
+}`,
+                    modulation: ""
+                },
+                "Simple sine wave": {
+                    construct: `// Frequency\nlength = frequency(440)
+
+function generator(i){
+    return sine(i, length)
+
+    // Waves: sine, triangle, square, saw, cubic, parabolic, exponential, harmonic, sqrt
+}`,
+                    modulation: ""
+                },
+                "BPM Wave": {
+                    construct: `// Beats Per Minute\nlength = bpm(14400);
+
+function generator(i){
+    return exponential(i, length)
+
+    // Waves: sine, triangle, square, saw, cubic, parabolic, exponential, harmonic, sqrt
+}`,
+                    modulation: ""
+                },
+            },
+
+            window: {
+                width: 800,
+                minWidth: 375,
+                maxWidth: 375 * 3,
+                minHeight: 130,
+                height: 380
+            },
+        }))
+    </script>
+</div>

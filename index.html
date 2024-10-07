@@ -31,11 +31,31 @@
         }
     </script>
 
+    <script type="module">
+        import * as monaco from 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.0/+esm';
+
+        window.monaco = monaco
+
+        await M.Script("core/css/editor_theme.js")
+
+        LS.invoke("monaco-ready")
+
+        // Mark the "monaco-ready" event as complete - this will call all future listeners instantly.
+        LS.GlobalEvents.prepare({
+            name: "monaco-ready",
+            completed: true
+        })
+
+        LS.GlobalEvents.completed("monaco-ready")
+    </script>
+
 </head>
 
 <body ls-accent="auto">
 
     @import ("/plugins/synthetizer/index.html");
+    @import ("/plugins/constructor/index.html");
+
 
     <!-- <div %composerContainer>
         <canvas %composerRenderer width="5760" height="240"></canvas>

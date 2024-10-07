@@ -70,13 +70,19 @@ addEventListener("load", () => {
         let key = event.key.toUpperCase();
 
         if(Sound.keyboardMapping[key]){
+            if(!windowManager.focused || !windowManager.focused.parentAudioComponent) return;
+
             if(event.type === "keyup"){
+
                 keyThreads[key].stop()
                 delete keyThreads[key]
+
             } else if(!keyThreads[key]) {
-                keyThreads[key] = Sound.components.synthetizer.instances[0].play({
+
+                keyThreads[key] = windowManager.focused.parentAudioComponent.play({
                     baseFrequency: Sound.keyboardMapping[key]
                 })
+
             }
         }
 
@@ -194,6 +200,7 @@ addEventListener("load", () => {
 
 
     Sound.createComponent("synthetizer")
+    Sound.createComponent("constructor")
 })
 
 function getNoteFrequencies() {
@@ -271,6 +278,40 @@ let Sound = {
         'L': 1396.91, // F6
         ';': 1480.00, // F#6/Gb6
         "'": 1567.98  // G6
+    },
+
+    generator: {
+        compile(bufferSize, generator, options){
+            const audioBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+            const output = audioBuffer.getChannelData(0);
+
+            for(let i = 0; i < bufferSize; i++){
+                output[i] = generator(i)
+            }
+
+            return {
+                audioBuffer,
+
+                output,
+
+                bufferSize,
+
+                createSource(){
+                    let source = audioContext.createBufferSource();
+
+                    source.buffer = audioBuffer;
+                    source.loop = true;
+
+                    return source
+                },
+
+                modulate(modulator){
+                    for(let i = 0; i < bufferSize; i++){
+                        output[i] = modulator(i, output[i])
+                    }
+                }
+            }
+        }
     },
 
     noiseGenerator: {
@@ -353,12 +394,12 @@ let Sound = {
                                 inner: [
                                     N("option", {value: "Default", inner: "Default"}),
         
-                                    Object.entries(component.options.presets).map(entry => {
+                                    component.options.presets? Object.entries(component.options.presets).map(entry => {
                                         return N("option", {
                                             value: entry[0],
                                             innerText: entry[0]
                                         })
-                                    })
+                                    }): null
                                 ],
         
                                 onchange(value){
