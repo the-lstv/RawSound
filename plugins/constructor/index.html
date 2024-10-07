@@ -64,6 +64,10 @@
                     modulation: "",
                 };
 
+                let moduleCompilationID = 0;
+
+                console.log(instance);
+
                 instance._continuousGenerator = (options = {}, onStop) => {
 
                     if(!clip) return;
@@ -71,13 +75,28 @@
                     // Need to compile every time
                     let source = clip.createSource()
 
-                    // let modulator = new Function("helpers", "i", "time", `const {${Object.keys(scriptHelpers).join(",")}} = helpers;let length = audioContext.sampleRate;${modulatorScript.getValue()}`)
-
-                    source.connect(instance.destination)
-
                     source.start()
 
-                    onStop(() => source.stop())
+                    let modulator;
+
+                    if(true){
+
+                        modulator = Sound.module("_" + moduleCompilationID)
+
+                        source.connect(modulator)
+                        modulator.connect(instance.destination)
+
+                    } else {
+
+                        source.connect(instance.destination)
+
+                    }
+
+                    onStop(() => {
+                        source.stop()
+
+                        if (modulator) modulator.disconnect()
+                    })
 
                 }
 
@@ -159,10 +178,22 @@
                     clip = Sound.generator.compile(constructor.length, constructor.generator)
                 }
 
+                async function compileModulator(){
+                    moduleCompilationID++;
+
+                    await Sound.registerModule(modulatorScript.getValue(), "_" + moduleCompilationID)
+                }
+
                 instance.loadPreset = function (data){
+
                     creationScript.setValue(data.construct)
-                    modulatorScript.setValue(data.modulation)
+                    modulatorScript.setValue(data.modulation || `process(inputs, outputs, parameters) {
+    return true;
+}`)
+
                     compile()
+                    compileModulator()
+
                 }
 
                 LS.once("monaco-ready", () => {
@@ -185,6 +216,7 @@
                     });
 
                     instance.element.get(".constructor-compile-button").on("click", compile)
+                    instance.element.get(".constructor-modulator-compile-button").on("click", compileModulator)
                 })
             }
         })

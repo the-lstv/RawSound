@@ -1,61 +1,5 @@
 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
-function playFilteredTone(frequency, duration) {
-    const oscillator = audioContext.createOscillator();
-    const filter = audioContext.createBiquadFilter();
-
-    filter.type = 'lowpass'; // Options: 'lowpass', 'highpass', 'bandpass', 'notch'
-    filter.frequency.setValueAtTime(1000, audioContext.currentTime); // Change the cutoff frequency
-
-    oscillator.connect(filter);
-    filter.connect(audioContext.destination);
-
-    oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
-    oscillator.start();
-    oscillator.stop(audioContext.currentTime + duration);
-}
-
-function playKick() {
-    const oscillator = audioContext.createOscillator();
-    const gain = audioContext.createGain();
-
-    oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(150, audioContext.currentTime); // Start frequency
-    oscillator.frequency.linearRampToValueAtTime(0, audioContext.currentTime + 0.1); // End frequency
-
-    gain.gain.setValueAtTime(1, audioContext.currentTime);
-    gain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.1);
-
-    oscillator.connect(gain);
-    gain.connect(audioContext.destination);
-
-    oscillator.start();
-    oscillator.stop(audioContext.currentTime + 0.1);
-}
-
-function playNoise(duration) {
-    const bufferSize = 4096 * 128;
-    const noiseBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
-    const output = noiseBuffer.getChannelData(0);
-
-    for (let i = 0; i < bufferSize; i++) {
-        output[i] = Math.random() * 2 - 1;
-    }
-
-    const noiseSource = audioContext.createBufferSource();
-    noiseSource.buffer = noiseBuffer;
-    const noiseFilter = audioContext.createBiquadFilter();
-
-    noiseFilter.type = 'lowpass';
-    noiseFilter.frequency.setValueAtTime(1000, audioContext.currentTime); 
-
-    noiseSource.connect(noiseFilter);
-    noiseFilter.connect(audioContext.destination);
-    
-    noiseSource.start();
-    noiseSource.stop(audioContext.currentTime + 8); // Play for 1 second
-}
-
 let composerRendererElement;
 
 addEventListener("load", () => {
@@ -88,119 +32,9 @@ addEventListener("load", () => {
 
     })
 
-
-    // composerRendererElement = O("#composerRenderer")
-
-    // Sound.composerContext = composerRendererElement.getContext("2d", {
-    //     willReadFrequently: true
-    // })
-
-    // composerRendererElement.on("mousemove", "mousedown", event => {
-    //     if(event.type === "mousemove" && !M.mouseDown) return;
-
-    //     let box = composerRendererElement.getBoundingClientRect();
-
-    //     Sound.composerContext.fillStyle = "#111"
-
-    //     let x = Math.floor((M.x - box.left) / 4)
-    //     let y = Math.floor((M.y - box.top) / 4)
-
-    //     Sound.composerContext.fillRect(x, y, 1, 1)
-    // })
-
-    // Sound.composer = {
-    //     readSample(from = 0){
-    //         let width = audioContext.sampleRate / 1000, height = composerRendererElement.height;
-
-    //         let data = Sound.composerContext.getImageData(from, 0, width, height).data;
-
-    //         let samples = [], current = [];
-
-    //         for (let y = 0; y < data.length; y+=4) {
-    //             current.push(data[y])
-
-    //             if(current.length === width) {
-    //                 samples.push(Sound.composer.condenseRow(current))
-    //                 current = []
-    //             }
-    //         }
-
-    //         return samples
-    //     },
-
-    //     condenseRow(arr) {
-    //         const result = [];
-    //         let count = 0;
-        
-    //         for (let i = 0; i < arr.length; i++) {
-    //             if (arr[i] !== 0) {
-    //                 count++;
-    //             } else {
-    //                 if (count > 0) {
-    //                     result.push(count);
-    //                     count = 0;
-    //                 }
-    //                 result.push(0);
-    //             }
-    //         }
-        
-    //         // If there are non-zero values left at the end
-    //         if (count > 0) {
-    //             result.push(count);
-    //         }
-        
-    //         return result;
-    //     },
-
-    //     play(){
-    //         let offset = 0;
-
-    //         let playback = setInterval(async () => {
-    //             let sample = Sound.composer.readSample(offset);
-
-    //             offset += audioContext.sampleRate;
-
-    //             let _i = -1;
-    //             for(let row of sample){
-    //                 _i++
-
-    //                 (async ()=>{
-    //                     let i = +_i;
-
-    //                     for(let duration of row){
-    //                         if(duration !== 0) {
-    
-    //                             await new Promise(resolve => {
-    //                                 let context = Sound.components.synthetizer.instances[0].play({
-    //                                     baseFrequency: i * 100
-    //                                 })
-   
-
-    //                                 setTimeout(() => {
-    //                                     context.stop()
-    //                                     resolve()
-    //                                 }, duration * (audioContext.sampleRate / 1000))
-    //                             })
-    
-    //                         } else {
-    //                             await new Promise(resolve => {
-    //                                 setTimeout(() => {
-    //                                     resolve()
-    //                                 }, 1 * (audioContext.sampleRate / 1000))
-    //                             })
-    //                         }
-    //                     }
-    //                 })()
-    //             }
-    //         }, 1000)
-    //     }
-    // }
-
-    // Sound.composerContext.clearRect(0, 0, composerRendererElement.width, composerRendererElement.height);
-
-
     Sound.createComponent("synthetizer")
     Sound.createComponent("constructor")
+
 })
 
 function getNoteFrequencies() {
@@ -314,8 +148,18 @@ let Sound = {
         }
     },
 
-    registerModule(name, source, inline = false){
-        
+    async registerModule(source, name = null){
+        let url = name? URL.createObjectURL(new Blob([`class Processor extends AudioWorkletProcessor{${source}};registerProcessor("${name.replace('"', '\\"')}",Processor);`], {
+            type: "text/javascript"
+        })): source
+
+        await audioContext.audioWorklet.addModule(url);
+
+        if(name) URL.revokeObjectURL(url)
+    },
+
+    module(name){
+        return new AudioWorkletNode(audioContext, name)
     },
 
     noiseGenerator: {
