@@ -314,6 +314,10 @@ let Sound = {
         }
     },
 
+    registerModule(name, source, inline = false){
+        
+    },
+
     noiseGenerator: {
         whiteNoise(bufferSize, output) {
             for (let i = 0; i < bufferSize; i++) {
