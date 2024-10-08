@@ -25,6 +25,13 @@
 
 <div .constructor-window>
 
+
+    <label .ls-checkbox>
+        Enable modulator
+        <input type="checkbox" .modulator-toggle>
+        <span></span>
+    </label>
+
     <div .constructor-view>
 
         <div>
@@ -79,7 +86,7 @@
 
                     let modulator;
 
-                    if(true){
+                    if(data.modulatorEnabled){
 
                         modulator = Sound.module("_" + moduleCompilationID)
 
@@ -164,6 +171,8 @@
 
                 function compile(){
                     let constructor;
+
+                    // TODO: Move compilation to WebWorkers
 
                     try {
                         constructor = (new Function("helpers", `const {${Object.keys(scriptHelpers).join(",")}} = helpers;let length = audioContext.sampleRate;${creationScript.getValue()};return {length, generator}`))(scriptHelpers)
