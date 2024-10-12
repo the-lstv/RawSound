@@ -1,0 +1,462 @@
+<style>
+    .constructor-window textarea {
+        margin: 0 !important;
+        width: 100%;
+    }
+
+    .constructor-view {
+        display: flex;
+        height: 350px;
+        gap: 4px;
+    }
+
+    .constructor-view > div {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        gap: 8px;
+    }
+
+    .constructor-editor {
+        height: 100%;
+        width: 99%;
+    }
+</style>
+
+<div .constructor-window>
+
+    <div .constructor-view>
+        
+        <div>
+            <div .constructor-modulator-script .constructor-editor></div>
+            <button .constructor-modulator-compile-button>Compile</button>
+        </div>
+
+    </div>
+
+    <div hidden>
+        Constructor is the simplest yet most powerful generator/modulation plugin of them all.<br>
+
+        It is a "do it yourself" plugin - you can create any sound with it using a script, that then gets compiled into a sample that is then played and can be modulated in real time using another script.<br>
+
+        It effectively allows you to code your own sound, instruments, filters, etc.<br><br>
+
+        This plugin allows you to make both simple instruments with a simplified API, and complex synthetizers or modulators at the same time.<br>
+        It offers many ways to do the same job with varying amounts of complexity, depending on how much control you need.
+    </div>
+
+    <script>
+        (component => {
+            component.onInstance = instance => {
+
+                let data = {
+                    define: "",
+                    modulation: "",
+                };
+
+                let moduleCompilationID = 0;
+
+                console.log(instance);
+                
+                instance._continuousGenerator = (options = {}, onStop) => {                    
+                    let modulator = Sound.module("_" + moduleCompilationID, {
+                        processorOptions: options
+                    }), compressor = audioContext.createDynamicsCompressor();
+
+                    modulator.connect(compressor)
+                    compressor.connect(instance.destination)
+
+                    onStop(() => {
+                        modulator.port.postMessage({ type: 'stop' });
+
+                        modulator.disconnect()
+                        compressor.disconnect()
+
+                        modulator = null
+                        compressor = null
+                    })
+                }
+
+                let creationScript, modulatorScript;
+
+                let scriptHelpers = {
+                    noise(){
+                        return Math.random() * 2 - 1
+                    },
+
+                    // bpm(bpm){
+                    //     return audioContext.sampleRate * (60 / bpm)
+                    // },
+
+                    // frequency(frequency){
+                    //     return audioContext.sampleRate / frequency
+                    // },
+
+                    sine(){
+                        const phase = this? this.phase: location.globalPhase.phase;
+
+                        return Math.sin(phase);
+                    },
+
+                    triangle(){
+                        const phase = this? this.phase: location.globalPhase.phase;
+
+                        return Math.asin(Math.sin(phase)) * (2 / Math.PI);
+                    },
+
+                    square(i){
+                        const phase = this? this.phase: location.globalPhase.phase;
+
+                        return Math.sign(Math.sin(phase))
+                    },
+
+                    saw(){
+                        const phase = this? this.phase: location.globalPhase.phase;
+
+                        if (this.phase >= 2 * Math.PI) {
+                            this.phase -= 2 * Math.PI;
+                        }
+
+                        return (phase / Math.PI) - 1;
+                    },
+
+                    cubic(){
+                        const phase = this? this.phase: location.globalPhase.phase;
+
+                        return 4 * Math.pow(phase - 0.5, 3); // Simple cubic equation
+                    },
+
+                    parabolic(){
+                        const phase = this? this.phase: location.globalPhase.phase;
+
+                        return 1 - 4 * Math.pow(phase - 0.5, 2);
+                    },
+
+                    exponential(){
+                        const phase = this? this.phase: location.globalPhase.phase;
+
+                        return Math.exp(2 * (phase - 0.5)) - 1;
+                    },
+
+                    harmonic(){
+                        const phase = this? this.phase: location.globalPhase.phase;
+
+                        return (
+                            Math.sin(2 * Math.PI * phase) +
+                            0.5 * Math.sin(4 * Math.PI * phase) +
+                            0.25 * Math.sin(6 * Math.PI * phase)
+                        ) / 1.75;
+                    },
+
+                    sqrt(){
+                        const phase = this? this.phase: location.globalPhase.phase;
+
+                        return Math.sqrt(phase) * 2 - 1;
+                    },
+
+                    gain(input, gain){
+                        return _helpers, input * Math.max(0, Math.min(gain, 1))
+                    }
+                }
+
+                async function compileModulator(){
+                    moduleCompilationID++;
+                    
+                    let id = "_" + moduleCompilationID;
+
+                    console.log("Compiled module: ", id, `(iteration no. ${moduleCompilationID})`);
+
+                    await Sound.registerModule(`
+                    class Phaser {
+                        constructor(baseFrequency = 440){
+                            this.phase = 0
+                            this.baseFrequency = baseFrequency
+                        }
+
+                        increment(frequency = this.baseFrequency){
+                            this.phase += (2 * Math.PI * frequency) / sampleRate
+                        }
+
+                        call(fn, frequency = this.baseFrequency, ...args){
+                            this.increment(frequency || this.baseFrequency)
+                            return fn.call(this, ...args)
+                        }
+                    }
+
+                    class Signal {
+                        constructor(value = 0, phaser = new Phaser) {
+                            this.value = value;
+
+                            this.phaser = typeof phaser === "number"? new Phaser(phaser) : phaser;
+
+                            Object.defineProperty(this, "phase", {
+                                get(){
+                                    return this.phaser.phase
+                                },
+
+                                set(value){
+                                    this.phaser.phase = value
+                                }
+                            })
+                        }
+
+                        frequency(value){
+                            this.phaser.baseFrequency = value
+                            return this;
+                        }
+
+                        noise(){
+                            this.value = Math.random() * 2 - 1
+                            return this;
+                        }
+
+                        add(...args){
+                            this.value += typeof args[0] === "number"? args[0] : this.phaser.call(...args)
+                            return this;
+                        }
+
+                        remove(...args){
+                            this.value -= typeof args[0] === "number"? args[0] : this.phaser.call(...args)
+                            return this;
+                        }
+
+                        set(...args){
+                            this.value = typeof args[0] === "number"? args[0] : this.phaser.call(...args)
+                            return this;
+                        }
+
+                        clear(){
+                            this.value = 0
+                            return this;
+                        }
+
+                        gain(gainValue = 1) {
+                            this.value *= gainValue;
+                            return this;
+                        }
+
+                        inverse() {
+                            this.value = -this.value;
+                            return this;
+                        }
+
+                        valueOf() {
+                            return this.value;
+                        }
+                    }
+
+                    let location = {
+                        index: 0,
+                        processing: 0,
+
+                        globalPhase: new Phaser,
+
+                        set (i, channel){
+                            location.index = i
+                            location.processing = channel.length
+
+                            location.globalPhase.increment()
+                        },
+
+                        get time(){
+                            return (Date.now() - ${Date.now()}) / 1000
+                        }
+                    }
+
+                    const _helpers = ${__scriptHelpersString};
+                    const {${Object.keys(scriptHelpers).join(",")}} = _helpers;
+                    
+                    ${modulatorScript.getValue()};
+                    
+                    class Processor extends AudioWorkletProcessor {
+                    
+                        constructor(options){
+                            super()
+
+                            this.port.onmessage = (event) => {
+                                if (event.data.type === 'stop') {
+                                    return this.stopped = true;
+                                }
+
+                                else if (onMessage) onMessage(event.data)
+                            }
+
+                            this.options = options;
+
+                            location.globalPhase.baseFrequency = this.baseFrequency = options.processorOptions.baseFrequency || 440
+
+                            if(typeof onInstance === "function") this.dynamicGenerator = onInstance.call(this)
+                        }
+                    
+                        process(inputs, outputs, parameters) {
+
+                            if(this.stopped) return false;
+
+                            const helpers = {
+                                mono (cb) {
+                                    for (let i = 0; i < outputs[0][0].length; i++) {
+                                        location.set(i, outputs[0][0])
+
+                                        let value = cb(i);
+
+                                        outputs[0][0][i] = typeof value !== "number"? value.value || 0: value;
+                                    }
+
+                                    for (let i = 0; i < outputs[0].length; i++) {
+                                        if(i !== 0) outputs[0][i] = outputs[0][0]
+                                    }
+                                },
+
+                                mono (cb) {
+                                    for (let i = 0; i < outputs[0][0].length; i++) {
+                                        location.set(i, outputs[0][0])
+
+                                        let value = cb(i);
+
+                                        outputs[0][0][i] = typeof value !== "number"? value.value || 0: value;
+                                    }
+
+                                    for (let i = 0; i < outputs[0].length; i++) {
+                                        if(i !== 0) outputs[0][i] = outputs[0][0]
+                                    }
+                                }
+                            };
+
+                            ;(typeof this.dynamicGenerator === "function"? this.dynamicGenerator: typeof generator === "function"? generator: () => {}).call(this, { time: currentTime, inputs, outputs, parameters, helpers });
+                            
+                            return true
+
+                        }
+                    };registerProcessor("${id.replace('"', '\\"')}",Processor);`, true)
+                }
+
+
+                // Terrible way, temporary just for proof of concept
+
+                function stringifyWithFunctions(obj) {
+                    return JSON.stringify(obj, function (key, value) {
+                        if (typeof value === 'function') {
+                            value = value.toString()
+
+                            return `:fn${value.startsWith("function")? value: " function "+ value}fn:`;
+                        }
+                        return value;
+                    }).replaceAll(":\":fn", ":").replaceAll("fn:\"", "")
+                }
+
+                let __scriptHelpersString = stringifyWithFunctions(scriptHelpers);
+
+                instance.loadPreset = function (data){
+
+                    modulatorScript.setValue(data.code || `function generator(inputs, outputs, parameters) {
+    return true;
+}`)
+
+                    compileModulator()
+
+                }
+
+                LS.once("monaco-ready", () => {
+                    modulatorScript = monaco.editor.create(instance.element.get(".constructor-modulator-script"), {
+                        value: '',
+                        language: "javascript",
+                        automaticLayout: true,
+                        fontFamily: "JetBrains Mono",
+                        minimap: { enabled: false },
+                        lineNumbers: "off",
+                    });
+
+                    instance.element.get(".constructor-modulator-compile-button").on("click", compileModulator)
+                })
+            }
+        })
+
+        (new Sound.Component("realtime_constructor", document.currentScript.parentElement, {
+            title: "Constructor",
+
+            name: "Wave Constructor",
+
+            presets: {
+                "Simple white noise": {
+                    code: `function generator({ helpers }) {
+    helpers.mono (noise) // Random number between -1 and 1
+}`
+                },
+
+                "Simple wave with dedicated phaser": {
+                    code: `let phaser = new Phaser;\n\nfunction generator({ helpers }) {
+
+    // Update the phaser's frequency to the current frequency
+    phaser.baseFrequency = this.baseFrequency;
+
+    helpers.mono ((i) => {
+        return phaser.call(sine)
+    })
+
+}`
+                },
+
+                "Simple wave with shared phaser": {
+                    code: `function generator({ helpers }) {
+
+    // The shared phaser's baseFrequency is set to the current frequency by default.
+
+    helpers.mono ((i) => {
+        return sine()
+    })
+}`},
+
+                "Simple wave with instanced phaser": {
+                    code: `function onInstance(){
+
+    // Dedicated phaser for the specific instance
+    let phaser = new Phaser(this.baseFrequency);
+
+    // You can return a function to be used as the generator
+    return function ({ helpers }) {
+        helpers.mono ((i) => {
+            return phaser.call(sine)
+        })
+    }
+
+}`},
+                "Simple wave with instanced phaser (separated function)": {
+                    code: `function onInstance(){
+
+    // Dedicated phaser for the specific instance
+    this.phaser = new Phaser(this.baseFrequency);
+
+}
+
+// Keep the generator separate
+
+function generator ({ helpers }) {
+    helpers.mono ((i) => {
+        return this.phaser.call(sine)
+    })
+}`},
+                "Custom wave with custom loop": {
+                    code: `let phaser = new Phaser(440); // Frequency\n\nfunction generator({ outputs }) {
+    for(let channel of outputs[0]){
+        for (let i = 0; i < channel.length; i++) {
+
+            channel[i] = Math.sin(phaser.phase);
+
+            phaser.increment()
+
+        }
+    }
+}`
+                },
+            },
+
+            window: {
+                width: 800,
+                minWidth: 375,
+                maxWidth: 375 * 3,
+                minHeight: 130,
+                height: 380
+            },
+        }))
+    </script>
+</div>

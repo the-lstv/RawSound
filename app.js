@@ -33,7 +33,7 @@ addEventListener("load", () => {
     })
 
     Sound.createComponent("synthetizer")
-    Sound.createComponent("constructor")
+    Sound.createComponent("realtime_constructor")
 
 })
 
@@ -148,18 +148,18 @@ let Sound = {
         }
     },
 
-    async registerModule(source, name = null){
-        let url = name? URL.createObjectURL(new Blob([`class Processor extends AudioWorkletProcessor{${source}};registerProcessor("${name.replace('"', '\\"')}",Processor);`], {
+    async registerModule(source, fromString = false){
+        let url = fromString? URL.createObjectURL(new Blob([source], {
             type: "text/javascript"
         })): source
 
         await audioContext.audioWorklet.addModule(url);
 
-        if(name) URL.revokeObjectURL(url)
+        if(fromString) URL.revokeObjectURL(url)
     },
 
-    module(name){
-        return new AudioWorkletNode(audioContext, name)
+    module(name, options){
+        return new AudioWorkletNode(audioContext, name, options)
     },
 
     noiseGenerator: {
