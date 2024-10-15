@@ -167,167 +167,167 @@
                     console.log("Compiled module: ", id, `(iteration no. ${moduleCompilationID})`);
 
                     await Sound.registerModule(`
-                    class Phaser {
-                        constructor(baseFrequency = 440){
-                            this.phase = 0
-                            this.baseFrequency = baseFrequency
-                        }
+class Phaser {
+    constructor(baseFrequency = 440){
+        this.phase = 0
+        this.baseFrequency = baseFrequency
+    }
 
-                        increment(frequency = this.baseFrequency){
-                            this.phase += (2 * Math.PI * frequency) / sampleRate
-                        }
+    increment(frequency = this.baseFrequency){
+        this.phase += (2 * Math.PI * frequency) / sampleRate
+    }
 
-                        call(fn, frequency = this.baseFrequency, ...args){
-                            this.increment(frequency || this.baseFrequency)
-                            return fn.call(this, ...args)
-                        }
-                    }
+    call(fn, frequency = this.baseFrequency, ...args){
+        this.increment(frequency || this.baseFrequency)
+        return fn.call(this, ...args)
+    }
+}
 
-                    class Signal {
-                        constructor(value = 0, phaser = new Phaser) {
-                            this.value = value;
+class Signal {
+    constructor(value = 0, phaser = new Phaser) {
+        this.value = value;
 
-                            this.phaser = typeof phaser === "number"? new Phaser(phaser) : phaser;
+        this.phaser = typeof phaser === "number"? new Phaser(phaser) : phaser;
 
-                            Object.defineProperty(this, "phase", {
-                                get(){
-                                    return this.phaser.phase
-                                },
+        Object.defineProperty(this, "phase", {
+            get(){
+                return this.phaser.phase
+            },
 
-                                set(value){
-                                    this.phaser.phase = value
-                                }
-                            })
-                        }
+            set(value){
+                this.phaser.phase = value
+            }
+        })
+    }
 
-                        frequency(value){
-                            this.phaser.baseFrequency = value
-                            return this;
-                        }
+    frequency(value){
+        this.phaser.baseFrequency = value
+        return this;
+    }
 
-                        noise(){
-                            this.value = Math.random() * 2 - 1
-                            return this;
-                        }
+    noise(){
+        this.value = Math.random() * 2 - 1
+        return this;
+    }
 
-                        add(...args){
-                            this.value += typeof args[0] === "number"? args[0] : this.phaser.call(...args)
-                            return this;
-                        }
+    add(...args){
+        this.value += typeof args[0] === "number"? args[0] : this.phaser.call(...args)
+        return this;
+    }
 
-                        remove(...args){
-                            this.value -= typeof args[0] === "number"? args[0] : this.phaser.call(...args)
-                            return this;
-                        }
+    remove(...args){
+        this.value -= typeof args[0] === "number"? args[0] : this.phaser.call(...args)
+        return this;
+    }
 
-                        set(...args){
-                            this.value = typeof args[0] === "number"? args[0] : this.phaser.call(...args)
-                            return this;
-                        }
+    set(...args){
+        this.value = typeof args[0] === "number"? args[0] : this.phaser.call(...args)
+        return this;
+    }
 
-                        clear(){
-                            this.value = 0
-                            return this;
-                        }
+    clear(){
+        this.value = 0
+        return this;
+    }
 
-                        gain(gainValue = 1) {
-                            this.value *= gainValue;
-                            return this;
-                        }
+    gain(gainValue = 1) {
+        this.value *= gainValue;
+        return this;
+    }
 
-                        inverse() {
-                            this.value = -this.value;
-                            return this;
-                        }
+    inverse() {
+        this.value = -this.value;
+        return this;
+    }
 
-                        valueOf() {
-                            return this.value;
-                        }
-                    }
+    valueOf() {
+        return this.value;
+    }
+}
 
-                    let location = {
-                        index: 0,
-                        processing: 0,
+let location = {
+    index: 0,
+    processing: 0,
 
-                        globalPhase: new Phaser,
+    globalPhase: new Phaser,
 
-                        set (i, channel){
-                            location.index = i
-                            location.processing = channel.length
+    set (i, channel){
+        location.index = i
+        location.processing = channel.length
 
-                            location.globalPhase.increment()
-                        },
+        location.globalPhase.increment()
+    },
 
-                        get time(){
-                            return (Date.now() - ${Date.now()}) / 1000
-                        }
-                    }
+    get time(){
+        return (Date.now() - ${Date.now()}) / 1000
+    }
+}
 
-                    const _helpers = ${__scriptHelpersString};
-                    const {${Object.keys(scriptHelpers).join(",")}} = _helpers;
-                    
-                    ${modulatorScript.getValue()};
-                    
-                    class Processor extends AudioWorkletProcessor {
-                    
-                        constructor(options){
-                            super()
+const _helpers = ${__scriptHelpersString};
+const {${Object.keys(scriptHelpers).join(",")}} = _helpers;
 
-                            this.port.onmessage = (event) => {
-                                if (event.data.type === 'stop') {
-                                    return this.stopped = true;
-                                }
+${modulatorScript.getValue()};
 
-                                else if (onMessage) onMessage(event.data)
-                            }
+class Processor extends AudioWorkletProcessor {
 
-                            this.options = options;
+    constructor(options){
+        super()
 
-                            location.globalPhase.baseFrequency = this.baseFrequency = options.processorOptions.baseFrequency || 440
+        this.port.onmessage = (event) => {
+            if (event.data.type === 'stop') {
+                return this.stopped = true;
+            }
 
-                            if(typeof onInstance === "function") this.dynamicGenerator = onInstance.call(this)
-                        }
-                    
-                        process(inputs, outputs, parameters) {
+            else if (onMessage) onMessage(event.data)
+        }
 
-                            if(this.stopped) return false;
+        this.options = options;
 
-                            const helpers = {
-                                mono (cb) {
-                                    for (let i = 0; i < outputs[0][0].length; i++) {
-                                        location.set(i, outputs[0][0])
+        location.globalPhase.baseFrequency = this.baseFrequency = options.processorOptions.baseFrequency || 440
 
-                                        let value = cb(i);
+        if(typeof onInstance === "function") this.dynamicGenerator = onInstance.call(this)
+    }
 
-                                        outputs[0][0][i] = typeof value !== "number"? value.value || 0: value;
-                                    }
+    process(inputs, outputs, parameters) {
 
-                                    for (let i = 0; i < outputs[0].length; i++) {
-                                        if(i !== 0) outputs[0][i] = outputs[0][0]
-                                    }
-                                },
+        if(this.stopped) return false;
 
-                                mono (cb) {
-                                    for (let i = 0; i < outputs[0][0].length; i++) {
-                                        location.set(i, outputs[0][0])
+        const helpers = {
+            mono (cb) {
+                for (let i = 0; i < outputs[0][0].length; i++) {
+                    location.set(i, outputs[0][0])
 
-                                        let value = cb(i);
+                    let value = cb(i);
 
-                                        outputs[0][0][i] = typeof value !== "number"? value.value || 0: value;
-                                    }
+                    outputs[0][0][i] = typeof value !== "number"? value.value || 0: value;
+                }
 
-                                    for (let i = 0; i < outputs[0].length; i++) {
-                                        if(i !== 0) outputs[0][i] = outputs[0][0]
-                                    }
-                                }
-                            };
+                for (let i = 0; i < outputs[0].length; i++) {
+                    if(i !== 0) outputs[0][i] = outputs[0][0]
+                }
+            },
 
-                            ;(typeof this.dynamicGenerator === "function"? this.dynamicGenerator: typeof generator === "function"? generator: () => {}).call(this, { time: currentTime, inputs, outputs, parameters, helpers });
-                            
-                            return true
+            mono (cb) {
+                for (let i = 0; i < outputs[0][0].length; i++) {
+                    location.set(i, outputs[0][0])
 
-                        }
-                    };registerProcessor("${id.replace('"', '\\"')}",Processor);`, true)
+                    let value = cb(i);
+
+                    outputs[0][0][i] = typeof value !== "number"? value.value || 0: value;
+                }
+
+                for (let i = 0; i < outputs[0].length; i++) {
+                    if(i !== 0) outputs[0][i] = outputs[0][0]
+                }
+            }
+        };
+
+        ;(typeof this.dynamicGenerator === "function"? this.dynamicGenerator: typeof generator === "function"? generator: () => {}).call(this, { time: currentTime, inputs, outputs, parameters, helpers });
+        
+        return true
+
+    }
+};registerProcessor("${id.replace('"', '\\"')}",Processor);`, true)
                 }
 
 
